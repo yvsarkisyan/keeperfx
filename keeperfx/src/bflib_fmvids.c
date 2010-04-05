@@ -30,6 +30,9 @@
 #include "bflib_fileio.h"
 #include <windows.h>
 
+//keeperfx header must be included for poll_sdl_events() for now
+#include "keeperfx.hpp"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -238,6 +241,8 @@ short play_smk_via_buffer(char *fname, int smkflags, int plyflags)
             SmackClose(smktag);
             return 2;
         }
+
+        poll_sdl_events();
         if (((plyflags & 0x02)==0) && (lbKeyOn[KC_ESCAPE] || lbKeyOn[KC_RETURN]
             || lbKeyOn[KC_SPACE] || lbDisplay.LeftButton) )
         {
@@ -314,6 +319,8 @@ short play_smk_direct(char *fname, int smkflags, int plyflags)
             SmackClose(smktag);
             return 2;
         }
+
+        poll_sdl_events();
         if (((plyflags & 0x02)==0) && (lbKeyOn[KC_ESCAPE] || lbKeyOn[KC_RETURN]
             || lbKeyOn[KC_SPACE] || lbDisplay.LeftButton) )
         {

@@ -70,7 +70,7 @@ volatile long backLockCount = 0;
 
 TDDrawSdk::TDDrawSdk(void) : TDDrawBaseClass()
 {
-  lpDDInterface = NULL;
+  /*lpDDInterface = NULL;
   this->lpDDSurface3 = NULL;
   this->lpDDSurface2 = NULL;
   this->lpDDSurface1 = NULL;
@@ -78,28 +78,30 @@ TDDrawSdk::TDDrawSdk(void) : TDDrawBaseClass()
   this->vidMode = Lb_SCREEN_MODE_INVALID;
   this->resWidth = 0;
   this->resHeight = 0;
-  this->field_180 = 0;
   this->window_created = 0;
-  hThread = NULL;
+  hThread = NULL;*/
+  vidMode = Lb_SCREEN_MODE_INVALID;
+  resWidth = 0;
+  resHeight = 0;
   flags = 0;
 }
 
 TDDrawSdk::~TDDrawSdk(void)
 {
-  if (lpDDInterface != NULL)
+  /*if (lpDDInterface != NULL)
   {
     release_palettes();
     release_surfaces();
     lpDDInterface->SetCooperativeLevel(hWindow, DDSCL_NORMAL);
     lpDDInterface->Release();
     lpDDInterface = NULL;
-  }
+  }*/
   remove_sdk_window();
 }
 
 bool TDDrawSdk::setup_window(void)
 {
-  DWORD nThreadId;
+  /*DWORD nThreadId;
   SYNCDBG(12,"Starting");
   if (hThread != NULL)
   {
@@ -113,13 +115,13 @@ bool TDDrawSdk::setup_window(void)
   while ( !this->window_created )
   {
     SleepEx(100, 0);
-  }
+  }*/
   return true;
 }
 
 long TDDrawSdk::WindowProc(HWND hWnd, unsigned int message, WPARAM wParam, LPARAM lParam)
 {
-  TbScreenModeInfo *mdinfo;
+  /*TbScreenModeInfo *mdinfo;
   TDDrawSdk *sdk;
   struct tagPOINT mouse_pos;
   switch (message)
@@ -201,146 +203,74 @@ long TDDrawSdk::WindowProc(HWND hWnd, unsigned int message, WPARAM wParam, LPARA
 
   default:
       return DefWindowProcA(hWnd, message, wParam, lParam);
-  }
+  }*/
   return 0;
 }
 
 void TDDrawSdk::find_video_modes(void)
 {
-  if ((flags & DMF_DoneSetup) == 0)
+  /*if ((flags & DMF_DoneSetup) == 0)
   {
     WARNLOG("Direct Draw not set up.");
     return;
   }
-  lpDDInterface->EnumDisplayModes(0, NULL, NULL, screen_mode_callback);
+  lpDDInterface->EnumDisplayModes(0, NULL, NULL, );
   if ((flags & DMF_LoresForceAvailable) != 0)
-    lbScreenModeInfo[Lb_SCREEN_MODE_320_200_8].Available = 1;
+    lbScreenModeInfo[Lb_SCREEN_MODE_320_200_8].Available = 1;*/
 }
 
 bool TDDrawSdk::get_palette(void *palette,unsigned long base,unsigned long numEntries)
 {
-  PALETTEENTRY ddEntries[256];
-  unsigned char *palptr;
-  PALETTEENTRY *ddpptr;
-  HRESULT locRet;
-  long i;
   SYNCDBG(12,"Starting");
-  if (lpDDPalette == NULL)
-  {
-    return false;
+
+  char * destColors = (char *) palette;
+  const SDL_Color * const srcColors = screenSurface->format->palette->colors;
+  unsigned long i;
+  for (i = 0; i < numEntries; ++i) {
+      destColors[0] = srcColors[base+i].r >> 2;
+      destColors[1] = srcColors[base+i].g >> 2;
+      destColors[2] = srcColors[base+i].b >> 2;
+      destColors += 3;
   }
-  if ((flags & DMF_PaletteSetup) == 0)
-  {
-    return false;
-  }
-  // Get palette from DDraw
-  locRet = lpDDPalette->GetEntries(0, base, numEntries, ddEntries);
-  if (locRet == DDERR_SURFACELOST)
-  {
-    WARNLOG("DDraw surface lost - restoring.");
-    restore_surfaces();
-    locRet = lpDDPalette->GetEntries(0, base, numEntries, ddEntries);
-  }
-  if (locRet != DD_OK)
-  {
-    return false;
-  }
-  // Convert the palette to the library format
-  palptr = (unsigned char *)palette;
-  ddpptr = ddEntries;
-  for (i=numEntries; i > 0; i--)
-  {
-    palptr[0] = (ddpptr->peRed >> 2);
-    palptr[1] = (ddpptr->peGreen >> 2);
-    palptr[2] = (ddpptr->peBlue >> 2);
-    ddpptr++;
-    palptr+=3;
-  }
+
   return true;
 }
 
 bool TDDrawSdk::set_palette(void *palette,unsigned long base,unsigned long numEntries)
 {
-  PALETTEENTRY ddEntries[256];
-  unsigned char *palptr;
-  PALETTEENTRY *ddpptr;
-  HRESULT locRet;
-  long i;
   SYNCDBG(12,"Starting");
-  if (!this->active)
-  {
-    return false;
+
+  SDL_Color * const destColors = (SDL_Color *) malloc(sizeof(*destColors) * numEntries);
+  const char * srcColors = (const char *) palette;
+  unsigned long i;
+  for (i = 0; i < numEntries; ++i) {
+      destColors[i].r = srcColors[0] << 2;
+      destColors[i].g = srcColors[1] << 2;
+      destColors[i].b = srcColors[2] << 2;
+      srcColors += 3;
   }
-  if ((flags & DMF_PaletteSetup) == 0)
-  {
-    return false;
-  }
-  if (lpDDInterface == NULL)
-  {
-    ERRORLOG("DirectDraw not set up");
-    return false;
-  }
-  // If not initiialized yet, then all entries must be set
-  if (lpDDPalette == NULL)
-  {
-    if ((base != 0) || (numEntries != 256))
-    {
-      ERRORLOG("Partial setting of palette is not supported this time");
-      return false;
-    }
-  }
-  // Convert the palette to the library format
-  palptr = (unsigned char *)palette;
-  ddpptr = ddEntries;
-  for (i=numEntries; i > 0; i--)
-  {
-    ddpptr->peRed  = palptr[0] << 2;
-    ddpptr->peGreen = palptr[1] << 2;
-    ddpptr->peBlue = palptr[2] << 2;
-    ddpptr++;
-    palptr+=3;
-  }
-  if (lpDDSurface3 == NULL)
-  {
-    return true;
-  }
-  if (lpDDPalette == NULL)
-  {
-    locRet = lpDDInterface->CreatePalette(DDPCAPS_ALLOW256|DDPCAPS_8BIT, ddEntries, &lpDDPalette, NULL);
-    if (locRet != DD_OK)
-    {
-      ERRORLOG("Cannot create palette");
-      return false;
-    }
-    locRet = lpDDSurface3->SetPalette(lpDDPalette);
-    if (locRet != DD_OK)
-    {
-      ERRORLOG("Cannot set the newly created palette");
-      return false;
-    }
-    return true;
-  }
-  locRet = lpDDPalette->SetEntries(0, base, numEntries, ddEntries);
-  if (locRet == DDERR_SURFACELOST)
-  {
-    WARNLOG("DDraw surface lost - restoring.");
-    restore_surfaces();
-    locRet = lpDDPalette->SetEntries(0, base, numEntries, ddEntries);
-  }
-  if (locRet != DD_OK)
-  {
-    ERRORLOG("Cannot set palette entries");
-    return false;
-  }
+
+  SDL_SetPalette(screenSurface, SDL_LOGPAL | SDL_PHYSPAL, destColors, base, numEntries);
+  free(destColors);
+
   return true;
 }
 
 bool TDDrawSdk::setup_screen(TbScreenMode mode)
 {
-  TbScreenModeInfo *mdinfo;
-  DDSURFACEDESC ddSurfDesc;
   SYNCDBG(12,"Starting");
-  reset_screen();
+
+  // Get display mode information and verify that it is available.
+
+  TbScreenModeInfo * const screenModeInfo = TDDrawSdk::get_mode_info(mode);
+
+  /*if (!LbScreenIsModeAvailable(mode)) { //TODO: implement properly first
+    ERRORLOG("screen mode %d not available",(int)mode);
+    return false;
+  }*/
+
+  // Set mostly obsolete flags.
+
   flags &= ~DMF_DoneSetup;
   flags &= ~DMF_SurfacesSetup;
   flags &= ~DMF_Unknown0010;
@@ -352,215 +282,145 @@ bool TDDrawSdk::setup_screen(TbScreenMode mode)
   flags &= ~DMF_LoresForceAvailable;
   flags &= ~DMF_Unknown0800;
   flags &= ~DMF_Unknown1000;
-  if ( !setup_window() )
-  {
-    ERRORLOG("Could not set up the SDK window.");
-    return false;
-  }
-  SendDDMsg(WM_USER+100, 0);
-  if (ResultDDMsg() != DD_OK)
-    return false;
 
-  if ( !LbScreenIsModeAvailable(mode) )
-  {
-    ERRORLOG("screen mode %d not available",(int)mode);
-    return false;
+  // Set some members,
+
+  vidMode = mode;
+  resWidth = screenModeInfo->Width;
+  resHeight = screenModeInfo->Height;
+
+  //setup SDL something...
+
+  flags |= DMF_DoneSetup;
+
+  //release_surfaces();
+  bool fullscreen = flags & DMF_ControlDisplayMode;
+  bool doublebuffer = is_double_buffering_video();
+  //bool wscreen = is_wscreen_in_video();
+
+  // SDL video mode flags.
+
+  unsigned long sdlFlags = SDL_HWPALETTE;
+  if (doublebuffer) {
+    sdlFlags |= SDL_DOUBLEBUF;
   }
-  SendDDMsg(WM_USER+102, &mode);
-  if (ResultDDMsg() != DD_OK)
-    return false;
-  mdinfo = TDDrawSdk::get_mode_info(mode);
-  if ((mdinfo->Width == 320) && ((flags & DMF_DoubleBuffering) == 0))
-  {
-    ERRORLOG("Could not setup double buffering for ModeX");
-    return false;
+  if (fullscreen) {
+    sdlFlags |= SDL_FULLSCREEN;
   }
-  this->vidMode = mode;
-  this->field_180 = mdinfo->Width;
-  if (((flags & DMF_WScreenInVideo) != 0) && (mdinfo->Width != 320))
-  {
-    memset(&ddSurfDesc, 0, sizeof(ddSurfDesc));
-    ddSurfDesc.dwSize = sizeof(ddSurfDesc);
-    if ((flags & DMF_DoubleBuffering) != 0)
-    {
-      ddResult = lpDDSurface2->Lock(NULL, &ddSurfDesc, DDLOCK_WAIT, NULL);
-      if (ddResult != DD_OK)
-      {
-        ERRORLOG("Could not lock back surface");
-        return false;
-      }
-      lpDDSurface2->Unlock(NULL);
-    } else
-    {
-      ddResult = lpDDSurface3->Lock(NULL, &ddSurfDesc, DDLOCK_WAIT, NULL);
-      if (ddResult != DD_OK)
-      {
-        ERRORLOG("Could not lock primary surface");
-        return false;
-      }
-      lpDDSurface3->Unlock(NULL);
-    }
-    SYNCLOG("Changing Pitch from %d to %d", this->field_180, ddSurfDesc.lPitch);
-    this->field_180 = ddSurfDesc.lPitch;
-  } else
-  {
-    SYNCDBG(1,"Pitch stays at %d", this->field_180);
+
+  // Set SDL video mode (also creates window).
+
+  screenSurface = SDL_SetVideoMode(screenModeInfo->Width, screenModeInfo->Height,
+      screenModeInfo->BitsPerPixel, sdlFlags);
+
+  if (screenSurface == NULL) {
+      ERRORLOG("Failed to initialize SDL video mode.");
+      return false;
   }
+
+  SDL_ShowCursor(SDL_DISABLE);
+
+  flags |= DMF_SurfacesSetup;
+
+  // Update DK display struct.
+
   lbDisplay.DrawFlags = 0;
   lbDisplay.DrawColour = 0;
-  lbDisplay.GraphicsScreenWidth = this->field_180;
-  lbDisplay.GraphicsScreenHeight = this->resHeight;
-  lbDisplay.PhysicalScreenWidth = this->resWidth;
-  lbDisplay.PhysicalScreenHeight = this->resHeight;
+  lbDisplay.GraphicsScreenWidth = screenSurface->pitch; //TODO: verify this should be it rather than resWidth
+  lbDisplay.GraphicsScreenHeight = resHeight;
+  lbDisplay.PhysicalScreenWidth = resWidth;
+  lbDisplay.PhysicalScreenHeight = resHeight;
   lbDisplay.ScreenMode = mode;
   lbDisplay.WScreen = NULL;
-  LbScreenSetGraphicsWindow(0, 0, this->resWidth, this->resHeight);
+
+  // Set graphics window... Whatever it means.
+
+  LbScreenSetGraphicsWindow(0, 0, resWidth, resHeight);
+
   return true;
 }
 
 bool TDDrawSdk::lock_screen(void)
 {
-  LPDIRECTDRAWSURFACE lpDDSurf;
-  DDSURFACEDESC ddSurfDesc;
   SYNCDBG(12,"Starting");
-  lpDDSurf = wscreen_surface();
-  if (lpDDSurf == NULL)
-  {
-    //ERRORLOG("no valid wscreen.");
-    return false;
+
+  if (SDL_LockSurface(screenSurface) < 0) {
+      lbDisplay.GraphicsWindowPtr = NULL;
+      lbDisplay.WScreen = NULL;
+      return false;
   }
-  memset(&ddSurfDesc, 0, sizeof(ddSurfDesc));
-  ddSurfDesc.dwSize = sizeof(ddSurfDesc);
-  while (backLockCount)
-  {  Sleep(1); }
-  ddResult = lpDDSurf->Lock(NULL, &ddSurfDesc, DDLOCK_WAIT, NULL);
-  if (ddResult == DDERR_SURFACELOST)
-  {
-    WARNLOG("DDraw surface lost - restoring.");
-    restore_surfaces();
-    lbDisplay.GraphicsWindowPtr = NULL;
-    lbDisplay.WScreen = NULL;
-    return false;
-  }
-  if (ddResult != DD_OK)
-  {
-    lbDisplay.GraphicsWindowPtr = NULL;
-    lbDisplay.WScreen = NULL;
-    return false;
-  }
-  lbDisplay.WScreen = (unsigned char *)ddSurfDesc.lpSurface;
+
   backLockCount++;
-  lbDisplay.GraphicsScreenWidth = ddSurfDesc.lPitch;
-  lbDisplay.GraphicsWindowPtr = &((unsigned char *)ddSurfDesc.lpSurface)[lbDisplay.GraphicsWindowX + lbDisplay.GraphicsScreenWidth * lbDisplay.GraphicsWindowY];
+  lbDisplay.WScreen = (unsigned char *) screenSurface->pixels;
+  lbDisplay.GraphicsScreenWidth = screenSurface->pitch;
+  lbDisplay.GraphicsWindowPtr = &lbDisplay.WScreen[lbDisplay.GraphicsWindowX +
+                                                   lbDisplay.GraphicsScreenWidth * lbDisplay.GraphicsWindowY];
+
   return true;
 }
 
 bool TDDrawSdk::unlock_screen(void)
 {
-  LPDIRECTDRAWSURFACE lpDDSurf;
-  HRESULT locRet;
   SYNCDBG(12,"Starting");
-  lpDDSurf = wscreen_surface();
-  if (lpDDSurf == NULL)
-  {
-    ERRORLOG("no valid wscreen.");
-    return false;
+
+  if (backLockCount <= 0) {
+      WARNLOG("Unmatching call");
   }
-  locRet = lpDDSurf->Unlock(NULL);
-  switch (locRet)
-  {
-  case DDERR_NOTLOCKED:
-      WARNLOG("Trying to unlock surface which is not locked");
-      lbDisplay.WScreen = NULL;
-      lbDisplay.GraphicsWindowPtr = NULL;
-      break;
-  case DDERR_GENERIC:
-      WARNLOG("DDraw Generic Error while unlocking");
-      break;
-  case DD_OK:
-      lbDisplay.WScreen = NULL;
-      lbDisplay.GraphicsWindowPtr = NULL;
-      backLockCount = 0;
-      break;
-  case DDERR_SURFACELOST:
-      WARNLOG("DDraw surface lost - restoring.");
-      restore_surfaces();
-      backLockCount--;
-      break;
-  default:
-      break;
-  }
+
+  backLockCount--;
+  lbDisplay.WScreen = NULL;
+  lbDisplay.GraphicsWindowPtr = NULL;
+
+  SDL_UnlockSurface(screenSurface);
+
   return true;
 }
 
 bool TDDrawSdk::clear_screen(unsigned long color)
 {
-  LPDIRECTDRAWSURFACE lpDDSurf;
-  HRESULT locRet;
-  DDBLTFX ddBltFx;
   SYNCDBG(12,"Starting");
-  lpDDSurf = wscreen_surface();
-  if (lpDDSurf == NULL)
-  {
-    ERRORLOG("No valid wscreen.");
-    return false;
+
+  if (SDL_FillRect(screenSurface, NULL, color) < 0) {
+      ERRORLOG("Error while clearing screen.");
+      return false;
   }
-  memset(&ddBltFx, 0, sizeof(ddBltFx));
-  ddBltFx.dwFillColor = color;
-  ddBltFx.dwSize = sizeof(ddBltFx);
-  locRet = lpDDSurf->Blt(NULL, 0, NULL, DDBLT_COLORFILL|DDBLT_WAIT, &ddBltFx);
-  if (locRet == DDERR_SURFACELOST)
-  {
-    WARNLOG("DDraw surface lost - restoring.");
-    restore_surfaces();
-    return false;
-  }
-  if (locRet != DD_OK)
-  {
-    ERRORLOG("Clear screen failed.");
-    return false;
-  }
+
   return true;
 }
 
 bool TDDrawSdk::clear_window(long x,long y,unsigned long w,unsigned long h,unsigned long color)
 {
-  // Note that it's a copy of clear_screen() - those lazy programmers...
-  LPDIRECTDRAWSURFACE lpDDSurf;
-  HRESULT locRet;
-  DDBLTFX ddBltFx;
   SYNCDBG(12,"Starting");
-  lpDDSurf = wscreen_surface();
-  if (lpDDSurf == NULL)
-  {
-    ERRORLOG("no valid wscreen.");
-    return false;
+
+  SDL_Rect rect;
+  rect.x = x;
+  rect.y = y;
+  rect.w = w;
+  rect.h = h;
+
+  if (SDL_FillRect(screenSurface, &rect, color) < 0) {
+      ERRORLOG("Error when clearing window.");
+      return false;
   }
-  memset(&ddBltFx, 0, sizeof(ddBltFx));
-  ddBltFx.dwFillColor = color;
-  ddBltFx.dwSize = sizeof(ddBltFx);
-  // Screw the rectangle coords, we will clear whole screen!
-  locRet = lpDDSurf->Blt(NULL, 0, NULL, DDBLT_COLORFILL|DDBLT_WAIT, &ddBltFx);
-  if (locRet == DDERR_SURFACELOST)
-  {
-    WARNLOG("DDraw surface lost - restoring.");
-    restore_surfaces();
-    return false;
-  }
-  if (locRet != DD_OK)
-  {
-    ERRORLOG("Clear screen failed.");
-    return false;
-  }
+
   return true;
 }
 
 bool TDDrawSdk::swap_screen(void)
 {
-  HRESULT locRet;
+  SYNCDBG(12,"Starting");
+
+  if (SDL_Flip(screenSurface) < 0) {
+      ERRORLOG("Call to SDL_Flip failed.");
+      return false;
+  }
+
+  //TODO: study original logic, see if it's needed...
+
+  /*HRESULT locRet;
   static RECT srcRect;
   static RECT destRect;
-  SYNCDBG(12,"Starting");
+
   if ((flags & DMF_SurfacesSetup) == 0)
     return false;
   if ((flags & DMF_DoubleBuffering) != 0)
@@ -638,13 +498,14 @@ bool TDDrawSdk::swap_screen(void)
         return false;
       }
     }
-  }
+  }*/
+
   return true;
 }
 
 bool TDDrawSdk::reset_screen(void)
 {
-  if ((flags & DMF_DoneSetup) == 0)
+  /*if ((flags & DMF_DoneSetup) == 0)
   {
     return false;
   }
@@ -654,13 +515,13 @@ bool TDDrawSdk::reset_screen(void)
   if (ResultDDMsg() != DD_OK)
   {
     return false;
-  }
+  }*/
   return true;
 }
 
 bool TDDrawSdk::restore_surfaces(void)
 {
-  if ((flags & DMF_SurfacesSetup) == 0)
+  /*if ((flags & DMF_SurfacesSetup) == 0)
     return false;
   if (lpDDSurface3 != NULL)
   {
@@ -680,12 +541,12 @@ bool TDDrawSdk::restore_surfaces(void)
         lpDDSurface1->SetPalette(lpDDPalette);
     }
   }
-  return (ddResult == DD_OK);
+  return (ddResult == DD_OK);*/ return true;
 }
 
 void TDDrawSdk::wait_vbi(void)
 {
-  BOOL bIsInVB;
+  /*BOOL bIsInVB;
   if (!this->active)
   {
     return;
@@ -694,12 +555,15 @@ void TDDrawSdk::wait_vbi(void)
   while (!bIsInVB)
   {
     lpDDInterface->GetVerticalBlankStatus(&bIsInVB);
-  }
+  }*/
 }
 
 bool TDDrawSdk::swap_box(struct tagPOINT coord,struct tagRECT &rect)
 {
-  LPDIRECTDRAWSURFACE lpDDSurf;
+  //SDL perhaps doesn't even let us touch primary surface, so swap entire screen for now (hope this works)
+  swap_screen();
+
+  /*LPDIRECTDRAWSURFACE lpDDSurf;
   HRESULT locRet;
   lpDDSurf = wscreen_surface();
   if (lpDDSurf == NULL)
@@ -716,97 +580,122 @@ bool TDDrawSdk::swap_box(struct tagPOINT coord,struct tagRECT &rect)
   {
     ERRORLOG("Swap Box screen failed.");
     return false;
-  }
+  }*/
   return true;
 }
 
 bool TDDrawSdk::create_surface(struct SSurface *surf,unsigned long w,unsigned long h)
 {
-  DDSURFACEDESC ddSurfDesc;
-  DDCOLORKEY ddColorKey;
-  surf->field_C = w;
-  surf->locks_count = 0;
-  surf->field_14 = 0;
-  surf->field_10 = h;
-  memset(&ddSurfDesc, 0, sizeof(ddSurfDesc));
-  ddSurfDesc.dwHeight = h;
-  ddSurfDesc.dwWidth = w;
-  ddSurfDesc.dwSize = sizeof(ddSurfDesc);
-  ddSurfDesc.dwFlags = 0x07;
-  ddSurfDesc.ddsCaps.dwCaps = 0x0840;
-  ddResult = lpDDInterface->CreateSurface(&ddSurfDesc, &surf->lpDDSurf, NULL);
-  if (ddResult != DD_OK)
-  {
-    surf->lpDDSurf = NULL;
-    return false;
+  SDL_PixelFormat * const format = screenSurface->format;
+
+  //TODO: verify that SDL_CreateRGBSurface is sufficient for our purposes
+  surf->surf = SDL_CreateRGBSurface(SDL_SRCCOLORKEY | SDL_HWSURFACE, w, h, format->BitsPerPixel,
+      format->Rmask, format->Gmask, format->Bmask, format->Amask);
+
+  if (surf->surf == NULL) {
+      ERRORLOG("Failed to create surface.");
+      return false;
   }
-  ddColorKey.dwColorSpaceLowValue = 255;
-  ddColorKey.dwColorSpaceHighValue = 255;
-  surf->lpDDSurf->SetColorKey(8, &ddColorKey);
+
+  //moved color key control to blt_surface()
+
   return true;
 }
 
 bool TDDrawSdk::release_surface(struct SSurface *surf)
 {
-  if (surf->lpDDSurf == NULL)
-  {
+  if (surf->surf == NULL) {
     return false;
   }
-  surf->lpDDSurf->Release();
-  surf->lpDDSurf = NULL;
+
+  SDL_FreeSurface(surf->surf);
+  surf->surf = NULL;
+
   return true;
 }
 
-bool TDDrawSdk::blt_surface(struct SSurface *surf,unsigned long x,unsigned long y,tagRECT *rect,unsigned long blflags)
+bool TDDrawSdk::blt_surface(struct SSurface *surf, unsigned long x, unsigned long y,
+    tagRECT *rect, unsigned long blflags)
 {
-  LPDIRECTDRAWSURFACE secSurf;
-  RECT reverseRect;
-  DWORD dwTrans;
-  secSurf = wscreen_surface();
-  if (secSurf == NULL)
-  {
-    //ERRORLOG("no valid wscreen.");
-    return false;
+  // Convert to SDL rectangles:
+
+  SDL_Rect srcRect;
+  SDL_Rect destRect;
+
+  srcRect.x = rect->left;
+  srcRect.y = rect->top;
+  srcRect.w = rect->right - rect->left;
+  srcRect.h = rect->bottom - rect->top;
+
+  destRect.x = x;
+  destRect.y = y;
+  destRect.w = srcRect.w;
+  destRect.h = srcRect.h;
+
+  // Set blit parameters:
+
+  if ((blflags & 0x02) != 0) {
+    //TODO: see how/if to handle this, I interpret this as "blit directly to primary rather than back"
+    //secSurf = lpDDSurface3;
+	//I think it can simply be deleted as not even the mouse pointer code is using it and there's no way
+	//to access front buffer in SDL
   }
-  if ((blflags & 0x02) != 0)
-    secSurf = lpDDSurface3;
-  dwTrans = 0;
-  if ((blflags & 0x04) != 0)
-      dwTrans |= DDBLTFAST_SRCCOLORKEY;
-  if ((blflags & 0x10) != 0)
-      dwTrans |= DDBLTFAST_WAIT;
-  if ((blflags & 0x08) != 0)
-  {
-    secSurf->BltFast(x, y, surf->lpDDSurf, rect, dwTrans);
-  } else
-  {
-    reverseRect.left = x;
-    reverseRect.top = y;
-    reverseRect.right = x + rect->right - rect->left;
-    reverseRect.bottom = y + rect->bottom - rect->top;
-    surf->lpDDSurf->BltFast(rect->left, rect->top, secSurf, &reverseRect, dwTrans);
+  if ((blflags & 0x04) != 0) {
+	  //enable color key
+      SDL_SetColorKey(surf->surf, SDL_SRCCOLORKEY, 255);
   }
+  else {
+	  //disable color key
+      SDL_SetColorKey(surf->surf, 0, 255);
+  }
+  if ((blflags & 0x10) != 0) {
+      //TODO: see if this can/should be handled
+	  //probably it can just be deleted
+      //dwTrans |= DDBLTFAST_WAIT;
+  }
+
+  // Blit:
+
+  //unfortunately we must fool SDL because it has a per-surface palette for 8 bit surfaces, DK does not
+  //set the palette of any off-screen surfaces, so temporarily change palette
+  SDL_Palette * paletteBackup = NULL;
+  if (surf->surf->format->BitsPerPixel == 8) {
+	  paletteBackup = surf->surf->format->palette;
+	  surf->surf->format->palette = screenSurface->format->palette;
+  }
+
+  //the blit
+  if ((blflags & 0x08) != 0) {
+	//surface to screen
+    SDL_BlitSurface(surf->surf, &srcRect, screenSurface, &destRect);
+  }
+  else {
+	//screen to surface
+    SDL_BlitSurface(screenSurface, &destRect, surf->surf, &srcRect);
+  }
+
+  //restore palette
+  if (surf->surf->format->BitsPerPixel == 8) {
+    surf->surf->format->palette = paletteBackup;
+  }
+
   return true;
 }
 
 void *TDDrawSdk::lock_surface(struct SSurface *surf)
 {
-  DDSURFACEDESC ddSurfDesc;
-  HRESULT locRes;
-  if (surf->lpDDSurf == NULL)
-  {
+  if (surf->surf == NULL) {
     return NULL;
   }
-  memset(&ddSurfDesc, 0, sizeof(ddSurfDesc));
-  ddSurfDesc.dwSize = sizeof(ddSurfDesc);
-  locRes = surf->lpDDSurf->Lock(NULL, &ddSurfDesc, DDLOCK_WAIT, NULL);
-  if (locRes != DD_OK)
-  {
-    return NULL;
+
+  if (SDL_LockSurface(surf->surf) < 0) {
+      ERRORLOG("Failed to lock surface");
+      return NULL;
   }
+
   surf->locks_count++;
-  surf->field_14 = ddSurfDesc.lPitch;
-  return ddSurfDesc.lpSurface;
+  surf->pitch = surf->surf->pitch;
+  return surf->surf->pixels;
 }
 
 bool TDDrawSdk::unlock_surface(struct SSurface *surf)
@@ -815,18 +704,22 @@ bool TDDrawSdk::unlock_surface(struct SSurface *surf)
   {
     return true;
   }
-  if (surf->lpDDSurf == NULL)
+
+  surf->locks_count = 0;
+
+  if (surf->surf == NULL)
   {
     return false;
   }
-  surf->lpDDSurf->Unlock(NULL);
-  surf->locks_count = 0;
+
+  SDL_UnlockSurface(surf->surf);
+
   return true;
 }
 
 void TDDrawSdk::LoresEmulation(bool nstate)
 {
-  static bool lre_set = false;
+  /*static bool lre_set = false;
   static long w;
   static long h;
   static TbDisplayStruct backup;
@@ -868,7 +761,7 @@ void TDDrawSdk::LoresEmulation(bool nstate)
       lbInteruptMouse = 1;
     }
     lre_set = nstate;
-  }
+  }*/
 }
 
 /**
@@ -876,10 +769,10 @@ void TDDrawSdk::LoresEmulation(bool nstate)
  */
 void TDDrawSdk::SendDDMsg(int message, void *param)
 {
-  Sleep(1);
+  /*Sleep(1);
   lbDDRval = DD_OK;
   lbWait = 1;
-  PostMessage(hWindow, message, (WPARAM)param, (LPARAM)this);
+  PostMessage(hWindow, message, (WPARAM)param, (LPARAM)this);*/
 }
 
 /**
@@ -887,14 +780,15 @@ void TDDrawSdk::SendDDMsg(int message, void *param)
  */
 HRESULT TDDrawSdk::ResultDDMsg(void)
 {
-  while (lbWait)
+  /*while (lbWait)
     Sleep(1);
-  return lbDDRval;
+  return lbDDRval;*/ return 0;
 }
 
+//TODO: add screen mode checking code overall
 HRESULT CALLBACK TDDrawSdk::screen_mode_callback(LPDDSURFACEDESC lpDDSurf, LPVOID lpContext)
 {
-  TbScreenModeInfo *mdinfo;
+  /*TbScreenModeInfo *mdinfo;
   mdinfo = &lbScreenModeInfo[1];
   while (mdinfo->Width > 0)
   {
@@ -905,13 +799,13 @@ HRESULT CALLBACK TDDrawSdk::screen_mode_callback(LPDDSURFACEDESC lpDDSurf, LPVOI
       return DDENUMRET_OK;
     }
     mdinfo++;
-  }
+  }*/
   return DDENUMRET_OK;
 }
 
 bool TDDrawSdk::setup_direct_draw(void)
 {
-  DDCAPS ddEmulCaps;
+  /*DDCAPS ddEmulCaps;
   this->flags &= ~DMF_DoneSetup;
   if (this->lpDDInterface == 0)
   {
@@ -932,13 +826,13 @@ bool TDDrawSdk::setup_direct_draw(void)
     ERRORLOG("Could not set cooperative level.");
     return false;
   }
-  flags |= DMF_DoneSetup;
+  flags |= DMF_DoneSetup;*/
   return true;
 }
 
 bool TDDrawSdk::reset_direct_draw(void)
 {
-  if ((flags & DMF_DoneSetup) == 0)
+  /*if ((flags & DMF_DoneSetup) == 0)
   {
     return false;
   }
@@ -957,13 +851,13 @@ bool TDDrawSdk::reset_direct_draw(void)
       lpDDInterface->SetCooperativeLevel(hWindow, DDSCL_NORMAL);
     }
   }
-  flags &= ~DMF_DoneSetup;
+  flags &= ~DMF_DoneSetup;*/
   return true;
 }
 
 bool TDDrawSdk::setup_dds_double_video(void)
 {
-  union {
+  /*union {
   DDSURFACEDESC ddSurfDesc;
   DDBLTFX ddBltFx;
   DDSCAPS attchSCaps;
@@ -998,13 +892,13 @@ bool TDDrawSdk::setup_dds_double_video(void)
     ERRORLOG("Could not create back buffer");
     release_surfaces();
     return false;
-  }
+  }*/
   return true;
 }
 
 bool TDDrawSdk::setup_dds_single_video(void)
 {
-  union {
+  /*union {
   DDSURFACEDESC ddSurfDesc;
   DDBLTFX ddBltFx;
   };
@@ -1027,12 +921,12 @@ bool TDDrawSdk::setup_dds_single_video(void)
   ddBltFx.dwFillColor = 0;
   ddBltFx.dwSize = sizeof(ddBltFx);
   lpDDSurface3->Blt(NULL, 0, NULL, DDBLT_COLORFILL|DDBLT_WAIT, &ddBltFx);
-  return (ddResult < 1);
+  return (ddResult < 1);*/ return true;
 }
 
 bool TDDrawSdk::setup_dds_system(void)
 {
-  DDSURFACEDESC ddSurfDesc;
+  /*DDSURFACEDESC ddSurfDesc;
   memset(&ddSurfDesc, 0, sizeof(ddSurfDesc));
   ddSurfDesc.dwSize = sizeof(ddSurfDesc);
   ddSurfDesc.dwHeight = this->resHeight;
@@ -1040,12 +934,12 @@ bool TDDrawSdk::setup_dds_system(void)
   ddSurfDesc.dwFlags = 7;
   ddSurfDesc.ddsCaps.dwCaps = 2112;
   ddResult = lpDDInterface->CreateSurface(&ddSurfDesc, &lpDDSurface1, NULL);
-  return (ddResult == DD_OK);
+  return (ddResult == DD_OK);*/ return true;
 }
 
 bool TDDrawSdk::setup_surfaces(short w, short h, short bpp)
 {
-  if ((flags & DMF_DoneSetup) == 0)
+  /*if ((flags & DMF_DoneSetup) == 0)
   {
     return false;
   }
@@ -1080,13 +974,13 @@ bool TDDrawSdk::setup_surfaces(short w, short h, short bpp)
     if (!setup_dds_system())
       set_wscreen_in_video(true);
   }
-  flags |= DMF_SurfacesSetup;
+  flags |= DMF_SurfacesSetup;*/
   return true;
 }
 
 bool TDDrawSdk::release_surfaces(void)
 {
-  LPDIRECTDRAWSURFACE lpDDSurLocal;
+  /*LPDIRECTDRAWSURFACE lpDDSurLocal;
   if (!this->active)
     return false;
   flags &= ~DMF_SurfacesSetup;
@@ -1106,13 +1000,13 @@ bool TDDrawSdk::release_surfaces(void)
       while (lpDDSurLocal->Release() != DD_OK)
         Sleep(1);
     }
-  }
+  }*/
   return true;
 }
 
 bool TDDrawSdk::release_palettes(void)
 {
-  LPDIRECTDRAWPALETTE lpDDPalLocal;
+  /*LPDIRECTDRAWPALETTE lpDDPalLocal;
   if ((flags & DMF_DoneSetup) == 0)
     return false;
   lpDDPalLocal = lpDDPalette;
@@ -1121,13 +1015,13 @@ bool TDDrawSdk::release_palettes(void)
     lpDDPalette = NULL;
     while (lpDDPalLocal->Release() != DD_OK)
     { Sleep(1); }
-  }
+  }*/
   return true;
 }
 
 LPDIRECTDRAWSURFACE TDDrawSdk::wscreen_surface(void)
 {
-  if ((flags & DMF_DoneSetup) == 0)
+  /*if ((flags & DMF_DoneSetup) == 0)
   {
     return NULL;
   } else
@@ -1145,12 +1039,12 @@ LPDIRECTDRAWSURFACE TDDrawSdk::wscreen_surface(void)
   } else
   {
     return lpDDSurface2;
-  }
+  }*/ return NULL;
 }
 
 DWORD CALLBACK TDDrawSdk::sdk_window_thread(LPVOID lpParam)
 {
-  struct TDDrawSdk *pthis;
+  /*struct TDDrawSdk *pthis;
   struct tagMSG tMsg;
   BOOL gmRet;
   pthis = (struct TDDrawSdk *)lpParam;
@@ -1171,13 +1065,13 @@ DWORD CALLBACK TDDrawSdk::sdk_window_thread(LPVOID lpParam)
     //TranslateMessage(&tMsg);
     DispatchMessage(&tMsg);
   }
-  //SYNCDBG(0,"Ending Sdk Thread.");
+  //SYNCDBG(0,"Ending Sdk Thread.");*/
   return 0;
 }
 
 bool TDDrawSdk::create_sdk_window(void)
 {
-  int w,h;
+ /* int w,h;
   w = GetSystemMetrics(SM_CXSCREEN);
   h = GetSystemMetrics(SM_CYSCREEN);
   hWindow = CreateWindowEx(WS_EX_APPWINDOW,appName,appTitle,
@@ -1189,25 +1083,25 @@ bool TDDrawSdk::create_sdk_window(void)
   SetIcon();
   UpdateWindow(hWindow);
   ShowWindow(hWindow, 1);
-  SetFocus(hWindow);
+  SetFocus(hWindow);*/
   return true;
 }
 
 LPCTSTR TDDrawSdk::resource_mapping(int index)
 {
-  switch (index)
+  /*switch (index)
   {
   case 1:
       return "A";
       //return MAKEINTRESOURCE(110); -- may work for other resource compilers
   default:
       return NULL;
-  }
+  }*/ return NULL;
 }
 
 void TDDrawSdk::SetIcon(void)
 {
-  HICON hIcon;
+  /*HICON hIcon;
   if (hWindow == NULL)
   {
     WARNLOG("Cannot set - no valid window handle.");
@@ -1216,12 +1110,12 @@ void TDDrawSdk::SetIcon(void)
   hIcon = LoadIcon(lbhInstance, resource_mapping(lbIconIndex));
   SendMessage(hWindow, WM_SETICON, ICON_BIG,  (LPARAM)hIcon);
   hIcon = LoadIcon(lbhInstance, resource_mapping(lbIconIndex));
-  SendMessage(hWindow, WM_SETICON, ICON_SMALL,(LPARAM)hIcon);
+  SendMessage(hWindow, WM_SETICON, ICON_SMALL,(LPARAM)hIcon);*/
 }
 
 bool TDDrawSdk::remove_sdk_window(void)
 {
-  DWORD ret;
+  /*DWORD ret;
   if (this->window_created)
   {
     SYNCDBG(0,"closing down Sdk Window.");
@@ -1237,7 +1131,7 @@ bool TDDrawSdk::remove_sdk_window(void)
     this->window_created = 0;
     hWindow = NULL;
     return true;
-  }
+  }*/
   return false;
 }
 

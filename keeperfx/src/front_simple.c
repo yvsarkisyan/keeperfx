@@ -174,6 +174,8 @@ TbBool show_rawimage_screen(unsigned char *raw,unsigned char *pal,int width,int 
     {
         LbWindowsControl();
         copy_raw8_image_to_screen_center(raw, width, height);
+
+        poll_sdl_events();
         if (is_key_pressed(KC_SPACE, KM_DONTCARE)
          || is_key_pressed(KC_ESCAPE, KM_DONTCARE)
          || is_key_pressed(KC_RETURN, KM_DONTCARE)

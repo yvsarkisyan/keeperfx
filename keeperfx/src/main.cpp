@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <winbase.h>
 #include <math.h>
+#include <string>
+#include <SDL.h>
 #include "keeperfx.hpp"
 
 #include "bflib_math.h"
@@ -55,7 +57,6 @@
 #include "thing_creature.h"
 #include "thing_objects.h"
 #include "thing_effects.h"
-#include "thing_doors.h"
 #include "slab_data.h"
 #include "room_data.h"
 #include "map_columns.h"
@@ -474,6 +475,7 @@ DLLIMPORT void _DK_light_initialise_lighting_tables(void);
 DLLIMPORT void _DK_check_map_for_gold(void);
 DLLIMPORT void _DK_set_thing_draw(struct Thing *thing, long a2, long a3, long a4, char a5, char a6, unsigned char a7);
 DLLIMPORT void _DK_light_set_light_minimum_size_to_cache(long a1, long a2, long a3);
+DLLIMPORT struct Thing *_DK_create_object(struct Coord3d *pos, unsigned short model, unsigned short owner, long a4);
 DLLIMPORT struct Thing *_DK_find_base_thing_on_mapwho(unsigned char oclass, unsigned short model, unsigned short x, unsigned short y);
 DLLIMPORT void _DK_delete_room_structure(struct Room *room);
 DLLIMPORT int _DK_get_gui_inputs(int);
@@ -491,6 +493,7 @@ DLLIMPORT void _DK_initialise_map_collides(void);
 DLLIMPORT void _DK_initialise_map_health(void);
 DLLIMPORT void _DK_initialise_extra_slab_info(unsigned long lv_num);
 DLLIMPORT long _DK_add_gold_to_hoarde(struct Thing *thing, struct Room *room, long amount);
+DLLIMPORT struct Thing *_DK_create_door(struct Coord3d *pos, unsigned short a1, unsigned char a2, unsigned short a3, unsigned char a4);
 DLLIMPORT void _DK_clear_mapwho(void);
 DLLIMPORT void _DK_clear_map(void);
 DLLIMPORT long _DK_ceiling_init(unsigned long a1, unsigned long a2);
@@ -622,6 +625,7 @@ DLLIMPORT void _DK_delete_thing_structure(struct Thing *thing, long a2);
 DLLIMPORT void _DK_make_safe(struct PlayerInfo *player);
 DLLIMPORT void _DK_remove_events_thing_is_attached_to(struct Thing *thing);
 DLLIMPORT unsigned long _DK_steal_hero(struct PlayerInfo *player, struct Coord3d *pos);
+DLLIMPORT void _DK_creature_increase_level(struct Thing *thing);
 DLLIMPORT void _DK_clear_slab_dig(long a1, long a2, char a3);
 DLLIMPORT void _DK_magic_use_power_hold_audience(unsigned char idx);
 DLLIMPORT void _DK_activate_dungeon_special(struct Thing *thing, struct PlayerInfo *player);
@@ -1497,7 +1501,7 @@ void apply_damage_to_thing(struct Thing *thing, long dmg, char a3)
             carmour = crstat->armour;
             if (!creature_control_invalid(cctrl))
             {
-              if ((cctrl->spell_flags & CSF_Armour) != 0)
+              if ((cctrl->field_AC & 0x04) != 0)
                   carmour = (320 * carmour) / 256;
             }
             if (carmour < 0)
@@ -1871,7 +1875,7 @@ void process_armageddon(void)
     for (i=0; i < PLAYERS_COUNT; i++)
     {
       player = get_player(i);
-      if (player_exists(player))
+      if ((player->field_0 & 0x01) != 0)
       {
         if (player->field_2C == 1)
           reveal_whole_map(player);
@@ -1883,7 +1887,7 @@ void process_armageddon(void)
     for (i=0; i < PLAYERS_COUNT; i++)
     {
       player = get_player(i);
-      if ( (player_exists(player)) && (player->field_2C == 1) )
+      if ( ((player->field_0 & 0x01) != 0) && (player->field_2C == 1) )
       {
         dungeon = get_dungeon(player->id_number);
         if ( (player->victory_state == VicS_Undecided) && (dungeon->field_919 == 0))
@@ -1926,7 +1930,7 @@ TbBool player_is_friendly_or_defeated(int plyr_idx, int win_plyr_idx)
   struct Dungeon *dungeon;
   player = get_player(plyr_idx);
   win_player = get_player(win_plyr_idx);
-  if (player_exists(player))
+  if ((player->field_0 & 0x01) != 0)
   {
       if ((win_plyr_idx == game.neutral_player_num) || (plyr_idx == game.neutral_player_num)     || (!player_allied_with(win_player, plyr_idx))
        || (game.neutral_player_num == plyr_idx)     || (win_plyr_idx == game.neutral_player_num) || (!player_allied_with(player, win_plyr_idx)))
@@ -3323,6 +3327,11 @@ struct Thing *create_thing(struct Coord3d *pos, unsigned short a1, unsigned shor
   return _DK_create_thing(pos, a1, a2, a3, a4);
 }
 
+struct Thing *create_door(struct Coord3d *pos, unsigned short a1, unsigned char a2, unsigned short a3, unsigned char a4)
+{
+  return _DK_create_door(pos, a1, a2, a3, a4);
+}
+
 unsigned long setup_move_off_lava(struct Thing *thing)
 {
   return _DK_setup_move_off_lava(thing);
@@ -3625,7 +3634,7 @@ TbBool any_player_close_enough_to_see(struct Coord3d *pos)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if ( (player_exists(player)) && ((player->field_0 & 0x40) == 0))
+    if ( ((player->field_0 & 0x01) != 0) && ((player->field_0 & 0x40) == 0))
     {
       if (player->acamera == NULL)
         continue;
@@ -6623,6 +6632,114 @@ long creature_instance_is_available(struct Thing *thing, long inum)
   return cctrl->instances[inum];
 }
 
+struct Thing *create_creature(struct Coord3d *pos, unsigned short model, unsigned short owner)
+{
+    struct CreatureControl *cctrl;
+    struct CreatureStats *crstat;
+    struct CreatureData *crdata;
+    struct Thing *crtng;
+    long i;
+    crstat = creature_stats_get(model);
+    if (!i_can_allocate_free_control_structure() || !i_can_allocate_free_thing_structure(1))
+    {
+      ERRORLOG("Cannot create creature, because there are too many things allocated.");
+      return NULL;
+    }
+    crtng = allocate_free_thing_structure(1);
+    cctrl = allocate_free_control_structure();
+    crtng->ccontrol_idx = cctrl->index;
+    crtng->class_id = 5;
+    crtng->model = model;
+    crtng->field_1D = crtng->index;
+    crtng->mappos.x.val = pos->x.val;
+    crtng->mappos.y.val = pos->y.val;
+    crtng->mappos.z.val = pos->z.val;
+    crtng->field_56 = crstat->size_xy;
+    crtng->field_58 = crstat->size_yz;
+    crtng->field_5A = crstat->thing_size_xy;
+    crtng->field_5C = crstat->thing_size_yz;
+    crtng->field_20 = 32;
+    crtng->field_22 = 0;
+    crtng->field_23 = 32;
+    crtng->field_24 = 8;
+    crtng->field_25 |= 0x08;
+    crtng->owner = owner;
+    crtng->field_52 = 0;
+    crtng->field_54 = 0;
+    cctrl->max_speed = calculate_correct_creature_maxspeed(crtng);
+    cctrl->field_2C1 = creatures[model].field_9;
+    cctrl->field_2C3 = creatures[model].field_B;
+    cctrl->field_2C5 = creatures[model].field_D;
+    i = get_creature_anim(crtng, 0);
+    set_thing_draw(crtng, i, 256, 300, 0, 0, 2);
+    cctrl->explevel = 1;
+    crtng->health = crstat->health;
+    cctrl->max_health = compute_creature_max_health(crstat->health,cctrl->explevel);
+    crtng->owner = owner;
+    crtng->mappos.x.val = pos->x.val;
+    crtng->mappos.y.val = pos->y.val;
+    crtng->mappos.z.val = pos->z.val;
+    crtng->field_9 = game.play_gameturn;
+    cctrl->field_286 = 17+ACTION_RANDOM(13);
+    cctrl->field_287 = ACTION_RANDOM(7);
+    if (game.field_14E496 == owner)
+    {
+      cctrl->sbyte_89 = -1;
+      cctrl->byte_8C = 1;
+    }
+    cctrl->pos_288.x.val = crtng->mappos.x.val;
+    cctrl->pos_288.y.val = crtng->mappos.y.val;
+    cctrl->pos_288.z.val = crtng->mappos.z.val;
+    cctrl->pos_288.z.val = get_thing_height_at(crtng, pos);
+    cctrl->field_1D2 = -1;
+    if (crstat->flying)
+      crtng->field_25 |= 0x20;
+    set_creature_level(crtng, 0);
+    crtng->health = compute_creature_max_health(crstat->health,cctrl->explevel);
+    add_thing_to_list(crtng, &game.thing_lists[0]);
+    place_thing_in_mapwho(crtng);
+    if (owner <= PLAYERS_COUNT)
+      set_first_creature(crtng);
+    set_start_state(crtng);
+    if (crtng->owner != game.neutral_player_num)
+    {
+        struct Dungeon *dungeon;
+        dungeon = get_dungeon(crtng->owner);
+        if (!dungeon_invalid(dungeon))
+        {
+            dungeon->score += game.creature_scores[crtng->model].value[cctrl->explevel];
+        }
+    }
+    crdata = creature_data_get(model);
+    cctrl->field_1E8 = crdata->flags;
+    return crtng;
+}
+
+TbBool creature_increase_level(struct Thing *thing)
+{
+  struct Dungeon *dungeon;
+  struct CreatureStats *crstat;
+  struct CreatureControl *cctrl;
+  //_DK_creature_increase_level(thing);
+  cctrl = creature_control_get_from_thing(thing);
+  if (creature_control_invalid(cctrl))
+  {
+      ERRORLOG("Invalid creature control; no action");
+      return false;
+  }
+  dungeon = get_dungeon(thing->owner);
+  if (dungeon->creature_max_level[thing->model] > cctrl->explevel)
+  {
+    crstat = creature_stats_get_from_thing(thing);
+    if ((cctrl->explevel < CREATURE_MAX_LEVEL-1) || (crstat->grow_up != 0))
+    {
+      cctrl->field_AD |= 0x40;
+      return true;
+    }
+  }
+  return false;
+}
+
 void remove_events_thing_is_attached_to(struct Thing *thing)
 {
   _DK_remove_events_thing_is_attached_to(thing);
@@ -7225,7 +7342,7 @@ void reinit_level_after_load(void)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if (player_exists(player))
+    if (player->field_0 & 0x01)
       set_engine_view(player, player->field_37);
   }
   start_rooms = &game.rooms[1];
@@ -7566,7 +7683,7 @@ void init_keepers_map_exploration(void)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if (player_exists(player) && (player->field_2C == 1))
+    if ((player->field_0 & 0x01) && (player->field_2C == 1))
     {
         if (player->field_0 & 0x40)
           init_keeper_map_exploration(player);
@@ -7789,7 +7906,7 @@ long get_resync_sender(void)
   for (i=0; i < NET_PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if (player_exists(player) && ((player->field_0 & 0x40) == 0))
+    if ( ((player->field_0 & 0x01) != 0) && ((player->field_0 & 0x40) == 0))
       return i;
   }
   return -1;
@@ -8725,7 +8842,7 @@ short winning_player_quitting(struct PlayerInfo *player, long *plyr_count)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
     swplyr = get_player(i);
-    if (player_exists(swplyr))
+    if (swplyr->field_0 & 0x01)
     {
       if (swplyr->field_2C == 1)
       {
@@ -9310,7 +9427,7 @@ void check_players_lost(void)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
       player = get_player(i);
-      if (player_exists(player) && (player->field_2C == 1))
+      if (((player->field_0 & 0x01) != 0) && (player->field_2C == 1))
       {
           dungeon = get_players_dungeon(player);
           thing = thing_get(dungeon->dnheart_idx);
@@ -9376,7 +9493,7 @@ void count_dungeon_stuff(void)
   {
     dungeon = get_dungeon(i);
     player = get_player(i);
-    if (player_exists(player))
+    if (player->field_0 & 0x01)
     {
       game.field_14E4A0 += dungeon->field_AF9;
       game.field_14E4A4 += dungeon->field_918;
@@ -9811,7 +9928,7 @@ void maintain_all_players_event_lists(void)
   for (i=0; i < PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if (player_exists(player))
+    if ((player->field_0 & 0x01) != 0)
     {
       dungeon = get_players_dungeon(player);
       maintain_my_event_list(dungeon);
@@ -10003,7 +10120,7 @@ void update_research(void)
   for (i=0; i<PLAYERS_COUNT; i++)
   {
       player = get_player(i);
-      if (player_exists(player) && (player->field_2C == 1))
+      if ((player->field_0 & 0x01) && (player->field_2C == 1))
       {
           process_player_research(i);
       }
@@ -10018,7 +10135,7 @@ void update_manufacturing(void)
   for (i=0; i<PLAYERS_COUNT; i++)
   {
       player = get_player(i);
-      if (player_exists(player) && (player->field_2C == 1))
+      if ((player->field_0 & 0x01) && (player->field_2C == 1))
       {
           process_player_manufacturing(i);
       }
@@ -10033,7 +10150,7 @@ void update_all_players_cameras(void)
   for (i=0; i<PLAYERS_COUNT; i++)
   {
     player = get_player(i);
-    if (player_exists(player) && ((player->field_0 & 0x40) == 0))
+    if ((player->field_0 & 0x01) && ((player->field_0 & 0x40) == 0))
     {
           update_player_camera(player);
     }
@@ -10161,7 +10278,7 @@ void process_players(void)
   for (i=0; i<PLAYERS_COUNT; i++)
   {
       player = get_player(i);
-      if (player_exists(player) && (player->field_2C == 1))
+      if ((player->field_0 & 0x01) && (player->field_2C == 1))
       {
           SYNCDBG(6,"Doing updates for player %d",i);
           wander_point_update(&player->wandr1);
@@ -10278,22 +10395,6 @@ void update_player_sounds(void)
         (k<=300) && ((k % 50)==0) || ((k % 250)==0)) )
       play_non_3d_sample(89);
   }
-  // Rare message easter egg
-  if ((game.play_gameturn != 0) && ((game.play_gameturn % 20000) == 0))
-  {
-      if (ACTION_RANDOM(2000) == 0)
-      {
-        k = UNSYNC_RANDOM(10);
-        SYNCDBG(9,"Rare message condition met, selected %d",(int)k);
-        if (k == 7)
-        {
-          output_message(94, 0, 1);// 'Your pants are definitely too tight'
-        } else
-        {
-          output_message(91+k, 0, 1);
-        }
-      }
-  }
   SYNCDBG(9,"Finished");
 }
 
@@ -10350,13 +10451,22 @@ void update(void)
   message_update();
   update_all_players_cameras();
   update_player_sounds();
-  game.field_14EA4B = 0;
-  // Display an error if any things were not created in this game turn
-  if (thing_create_errors > 0)
+
+  // Rare message easter egg
+  if ((game.play_gameturn != 0) && ((game.play_gameturn % 0x4E20) == 0))
   {
-      ERRORLOG("Creating %lu things failed, because there are too many allocated.",thing_create_errors);
-      thing_create_errors = 0;
+      if (ACTION_RANDOM(0x7D0u) == 0)
+      {
+        if (UNSYNC_RANDOM(10) == 7)
+        {
+          output_message(94, 0, 1);// 'Your pants are definitely too tight'
+        } else
+        {
+          output_message((game.unsync_rand_seed % 10) + 91, 0, 1);
+        }
+      }
   }
+  game.field_14EA4B = 0;
   SYNCDBG(6,"Finished");
 }
 
@@ -12522,6 +12632,7 @@ void keeper_gameplay_loop(void)
       // Check if we should redraw screen in this turn
       do_draw = display_should_be_updated_this_turn() || (!LbIsActive());
 
+      poll_sdl_events();
       update_mouse();
       input_eastegg();
       input();
@@ -12645,6 +12756,110 @@ void set_thing_draw(struct Thing *thing, long a2, long a3, long a4, char a5, cha
 void light_set_light_minimum_size_to_cache(long a1, long a2, long a3)
 {
   _DK_light_set_light_minimum_size_to_cache(a1, a2, a3);
+}
+
+struct Thing *create_object(struct Coord3d *pos, unsigned short model, unsigned short owner, long a4)
+{
+  struct Objects *objdat;
+  struct ObjectConfig *objconf;
+  struct InitLight ilight;
+  struct Thing *thing;
+  long i,k;
+  //thing = _DK_create_object(pos, model, owner, a4);
+
+  if (!i_can_allocate_free_thing_structure(1))
+  {
+    ERRORLOG("Cannot create object model %d for player %d. There are too many things allocated.",(int)model,(int)owner);
+    return NULL;
+  }
+  LbMemorySet(&ilight, 0, sizeof(struct InitLight));
+  thing = allocate_free_thing_structure(1);
+  thing->class_id = TCls_Object;
+  thing->model = model;
+  if (a4 == -1)
+    thing->field_1D = -1;
+  else
+    thing->field_1D = a4;
+  LbMemoryCopy(&thing->mappos, pos, sizeof(struct Coord3d));
+  objconf = &game.objects_config[model];
+  objdat = get_objects_data_for_thing(thing);
+  thing->field_56 = objdat->field_9;
+  thing->field_58 = objdat->field_B;
+  thing->field_5A = objdat->field_9;
+  thing->field_5C = objdat->field_B;
+  thing->health = saturate_set_signed(objconf->health,16);
+  thing->field_20 = objconf->field_4;
+  thing->field_23 = 204;
+  thing->field_24 = 51;
+  thing->field_22 = 0;
+  thing->field_25 |= 0x08;
+
+  set_flag_byte(&thing->field_25, 0x40, objconf->field_8);
+  thing->owner = owner;
+  thing->field_9 = game.play_gameturn;
+
+  if (!objdat->field_2)
+  {
+    i = convert_td_iso(objdat->field_5);
+    k = 0;
+  } else
+  {
+    i = convert_td_iso(objdat->field_5);
+    k = -1;
+  }
+  set_thing_draw(thing, i, objdat->field_7, objdat->field_D, 0, k, objdat->field_11);
+  set_flag_byte(&thing->field_4F, 0x02, objconf->field_5);
+  set_flag_byte(&thing->field_4F, 0x01, objdat->field_3 & 0x01);
+  set_flag_byte(&thing->field_4F, 0x10, objdat->field_F & 0x01);
+  set_flag_byte(&thing->field_4F, 0x20, objdat->field_F & 0x02);
+  thing->field_7 = objdat->field_0;
+  if (objconf->light != 0)
+  {
+    LbMemoryCopy(&ilight.mappos, &thing->mappos, sizeof(struct Coord3d));
+    ilight.field_0 = objconf->light;
+    ilight.field_2 = objconf->field_B;
+    ilight.field_3 = objconf->field_C[0];
+    ilight.field_11 = objconf->field_1A;
+    thing->field_62 = light_create_light(&ilight);
+    if (thing->field_62 == 0)
+      ERRORLOG("Cannot allocate light to object model %d",(int)model);
+  }
+  switch (thing->model)
+  {
+    case 3:
+      thing->long_13 = game.chest_gold_hold;
+      break;
+    case 5:
+      thing->byte_13.h = 1;
+      light_set_light_minimum_size_to_cache(thing->field_62, 0, 56);
+      break;
+    case 6:
+      thing->long_13 = game.pot_of_gold_holds;
+      break;
+    case 33:
+      set_flag_byte(&thing->field_4F, 0x10, false);
+      set_flag_byte(&thing->field_4F, 0x20, true);
+      break;
+    case 43:
+      thing->long_13 = game.gold_pile_value;
+      break;
+    case 49:
+      i = get_free_hero_gate_number();
+      if (i > 0)
+      {
+        thing->byte_13.l = i;
+      } else
+      {
+        thing->byte_13.l = 0;
+        ERRORLOG("Could not allocate number for hero gate");
+      }
+      break;
+    default:
+      break;
+  }
+  add_thing_to_list(thing, &game.thing_lists[2]);
+  place_thing_in_mapwho(thing);
+  return thing;
 }
 
 struct Thing *find_base_thing_on_mapwho(unsigned char oclass, unsigned short model, unsigned short x, unsigned short y)
@@ -12832,10 +13047,9 @@ short magic_use_power_slap(unsigned short plyr_idx, unsigned short stl_x, unsign
   return _DK_magic_use_power_slap(plyr_idx, stl_x, stl_y);
 }
 
-/**
+/*
  * Updates thing interaction with rooms. Sometimes deletes the given thing.
- * @param thing Thing to be checked, and assimilatedor deleted.
- * @return True if the thing was asimilated, false if it was deleted.
+ * @return Returns true if everything is ok, false if the thing was incorrect.
  */
 short check_and_asimilate_thing_by_room(struct Thing *thing)
 {
@@ -13299,7 +13513,7 @@ void init_players(void)
   {
     player = get_player(i);
     player->field_0 ^= (player->field_0 ^ ((game.packet_save_head.field_C & (1 << i)) >> i)) & 1;
-    if (player_exists(player))
+    if (player->field_0 & 0x01)
     {
       player->id_number = i;
       player->field_0 ^= (player->field_0 ^ (((game.packet_save_head.field_D & (1 << i)) >> i) << 6)) & 0x40;
@@ -13389,7 +13603,7 @@ void setup_alliances(void)
   for (i=0; i<PLAYERS_COUNT; i++)
   {
       player = get_player(i);
-      if ( (!is_my_player_number(i)) && (player_exists(player)) )
+      if ((i != my_player_number) && (player->field_0 & 0x01))
       {
           if (frontend_is_player_allied(my_player_number, i))
           {
@@ -13708,6 +13922,7 @@ void wait_at_frontend(void)
       SYNCDBG(0,"Windows Control exit condition invoked");
       break;
     }
+    poll_sdl_events();
     update_mouse();
     update_key_modifiers();
     old_mouse_over_button = frontend_mouse_over_button;
@@ -13807,6 +14022,129 @@ void wait_at_frontend(void)
   player->field_6 &= 0xFDu;
 }
 
+/**
+ * Converts an SDL mouse button event type and the corresponding mouse button to a Win32 API message.
+ * @param eventType
+ * @param button
+ * @return
+ */
+static unsigned get_mouse_message_type(int eventType, unsigned button) {
+    if (eventType == SDL_MOUSEBUTTONDOWN) {
+        switch (button)  {
+        case SDL_BUTTON_LEFT: return WM_LBUTTONDOWN;
+        case SDL_BUTTON_MIDDLE: return WM_MBUTTONDOWN;
+        case SDL_BUTTON_RIGHT: return WM_RBUTTONDOWN;
+        }
+    }
+    else if (eventType == SDL_MOUSEBUTTONUP) {
+        switch (button) {
+        case SDL_BUTTON_LEFT: return WM_LBUTTONUP;
+        case SDL_BUTTON_MIDDLE: return WM_MBUTTONUP;
+        case SDL_BUTTON_RIGHT: return WM_RBUTTONUP;
+        }
+    }
+
+    ERRORMSG("Shouldn't get here");
+    return 0;
+}
+
+/**
+ * Temporary function that emulates the value of the extension bit in WM_KEYUP/WM_KEYDOWN
+ * until KeyboardProc can be written.
+ * @param sym
+ * @return
+ */
+static bool has_ext_bit(SDLKey sym)
+{
+	switch (sym) {
+	case SDLK_RALT:
+	case SDLK_RCTRL:
+	case SDLK_INSERT:
+	case SDLK_HOME:
+	case SDLK_END:
+	case SDLK_DELETE:
+	case SDLK_PAGEUP:
+	case SDLK_PAGEDOWN:
+	case SDLK_UP:
+	case SDLK_DOWN:
+	case SDLK_LEFT:
+	case SDLK_RIGHT:
+	case SDLK_KP_DIVIDE:
+	case SDLK_KP_ENTER:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
+ * Converts an SDL_KeyboardEvent to an LPARAM parameter as per Win32 API, because that's
+ * what DK's KeyboardProc expects.
+ * @param ev
+ * @return
+ */
+static LPARAM make_LPARAM_from_sdl_key_event(const SDL_KeyboardEvent * const ev)
+{
+	LPARAM lParam;
+
+	//bit 31: key up or down?
+	lParam = ev->type == SDL_KEYUP? 0x80000000 : 0;
+
+	//TODO: detect if key already was down (bit 30 of LPARAM)
+
+	//bit 29: state of alt key(s)
+	if (ev->keysym.mod & KMOD_ALT) {
+		lParam |= 0x20000000;
+	}
+
+	//bits 25-28 reserved, leave 0
+
+	//bit 24: extension bit
+	if (has_ext_bit(ev->keysym.sym)) {
+		lParam |= 0x1000000;
+	}
+
+	//bits 16-23: scancode
+	lParam |= ev->keysym.scancode << 16;
+
+	//bits 0-15: repeat count, always let this be 1 due to SDL semantics
+	lParam |= 1;
+
+	return lParam;
+}
+
+void poll_sdl_events() {
+    SYNCDBG(12,"Polling SDL events.");
+
+    SDL_Event ev;
+    struct tagPOINT mousePos;
+    int x, y;
+
+    //TODO: handle double clicks, SDL don't generate them
+
+    while (SDL_PollEvent(&ev)) {
+        switch (ev.type) {
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+            KeyboardProc(0, 0, make_LPARAM_from_sdl_key_event(&ev.key));
+            break;
+        case SDL_MOUSEMOTION:
+        	SDL_GetRelativeMouseState(&x, &y);
+        	mousePos.x = x; //ev.motion.x;
+        	mousePos.y = y; //ev.motion.y;
+            mouseControl(WM_MOUSEMOVE, &mousePos);
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+        	SDL_GetRelativeMouseState(&x, &y);
+            mousePos.x = x; //ev.button.x;
+            mousePos.y = y; //ev.button.y;
+            mouseControl(get_mouse_message_type(ev.type, ev.button.button), &mousePos);
+            break;
+        }
+    }
+}
+
 void game_loop(void)
 {
   //_DK_game_loop(); return;
@@ -13817,6 +14155,7 @@ void game_loop(void)
   SYNCDBG(0,"Entering gameplay loop.");
   while ( !exit_keeper )
   {
+    poll_sdl_events();
     update_mouse();
     wait_at_frontend();
     if ( exit_keeper )
@@ -13844,7 +14183,9 @@ void game_loop(void)
     dungeon->lvstats.time2 = timeGetTime();//starttime;
     LbScreenClear(0);
     LbScreenSwap();
+
     keeper_gameplay_loop();
+
     set_pointer_graphic_none();
     LbScreenClear(0);
     LbScreenSwap();
@@ -14028,6 +14369,7 @@ void close_video_context(void)
 int LbBullfrogMain(unsigned short argc, char *argv[])
 {
   //return _DK_LbBullfrogMain(argc, argv);
+
   short retval;
   retval=0;
   LbErrorLogSetup("/", log_file_name, 5);
@@ -14044,6 +14386,14 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
       close_video_context();
       LbErrorLogClose();
       return 0;
+  }
+
+  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+     ERRORLOG("SDL_Init failed.");
+     return 0;
+  }
+  else {
+      SYNCDBG(0, "SDL_Init successful.");
   }
 
   retval = setup_game();
@@ -14076,6 +14426,9 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
   }
   reset_game();
   close_video_context();
+
+  SDL_Quit();
+
   if ( !retval )
   {
       static const char *msg_text="Setting up game failed.\n";
@@ -14139,15 +14492,11 @@ void exit_handler(void)
     ERRORMSG("Application exit called.");
 }
 
-int WINAPI WinMain (HINSTANCE hThisInstance,
-                    HINSTANCE hPrevInstance,
-                    LPSTR lpszArgument,
-                    int nFunsterStil)
+
+int main(int argc, char *argv[])
 {
-//  return _DK_WinMain(hThisInstance,hPrevInstance,lpszArgument,nFunsterStil);
   char *text;
-  _DK_hInstance = hThisInstance;
-  lbhInstance = hThisInstance;
+  lbhInstance = _DK_hInstance = GetModuleHandle(NULL);
   lpDDC = NULL;
 
   get_cmdln_args(bf_argc, bf_argv);

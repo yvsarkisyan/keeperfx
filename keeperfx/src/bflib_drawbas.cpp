@@ -19,8 +19,8 @@
 /******************************************************************************/
 #include "bflib_drawbas.hpp"
 
-#include <string.h>
-#include <stdio.h>
+#include <cstring>
+#include <cstdio>
 
 #include "bflib_basics.h"
 
@@ -36,7 +36,7 @@ volatile unsigned long lbIconIndex = 0;
 
 TDDrawBaseClass::TDDrawBaseClass(void)
 {
-  WNDCLASSA WndClass;
+  /*WNDCLASSA WndClass;
   this->flags = 0;
   set_double_buffering_video(false);
   this->hWindow = NULL;
@@ -62,7 +62,7 @@ TDDrawBaseClass::TDDrawBaseClass(void)
   WndClass.lpszMenuName = this->appName;
   WndClass.lpszClassName = this->appName;
   RegisterClass(&WndClass);
-  lpDDC = this;
+  lpDDC = this;*/
 }
 
 TDDrawBaseClass::~TDDrawBaseClass(void)
@@ -77,7 +77,7 @@ void TDDrawBaseClass::LoresEmulation(bool nstate)
 /**
  *  Static callback, used only as a wrapper to call virtual WindowProc() method.
  */
-long CALLBACK TDDrawBaseClass::WndProc(HWND hWnd, unsigned int message, WPARAM wParam, LPARAM lParam)
+/*long CALLBACK TDDrawBaseClass::WndProc(HWND hWnd, unsigned int message, WPARAM wParam, LPARAM lParam)
 {
   try {
     return lpDDC->WindowProc(hWnd, message, wParam, lParam);
@@ -85,7 +85,7 @@ long CALLBACK TDDrawBaseClass::WndProc(HWND hWnd, unsigned int message, WPARAM w
   {
     return 0;
   }
-}
+}*/
 
 bool TDDrawBaseClass::is_double_buffering_video(void)
 {

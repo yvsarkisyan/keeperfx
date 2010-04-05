@@ -69,7 +69,7 @@ TbResult LbScreenSwap(void)
   if (LbMouseOnBeginSwap() == Lb_SUCCESS)
   {
     ret = lpDDC->swap_screen();
-    LbMouseOnEndSwap();
+    //LbMouseOnEndSwap();
   }
   if (ret)
     return Lb_SUCCESS;

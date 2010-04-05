@@ -8,7 +8,7 @@
  *     Graphics drawing support sdk class.
  * @par Comment:
  *     Just a header file - #defines, typedefs, function prototypes etc.
- * @author   Tomasz Lis
+ * @author   Tomasz Lis, Petter Hansson
  * @date     16 Nov 2008 - 21 Nov 2009
  * @par  Copying and copyrights:
  *     This program is free software; you can redistribute it and/or modify
@@ -24,16 +24,17 @@
 #include "bflib_video.h"
 #include "bflib_drawbas.hpp"
 #include <ddraw.h>
+#include <SDL.h>
 
 /******************************************************************************/
 
-struct SSurface {
-    LPDIRECTDRAWSURFACE lpDDSurf;
-    long field_4;
-    unsigned long locks_count;
-    long field_C;
-    long field_10;
-    long field_14;
+struct SSurface { //TODO: see if this must retain all fields...
+    SDL_Surface* surf;
+    /*long field_4;*/
+    unsigned long locks_count; //perhaps not necessary
+    /*long field_C;
+    long field_10;*/
+    long pitch; //can in reality be replaced by surf->pitch if dependent code is changed
 };
 
 // Exported class
@@ -84,7 +85,13 @@ class TDDrawSdk : public TDDrawBaseClass {
     LPCTSTR resource_mapping(int index);
     void SendDDMsg(int, void *);
     HRESULT ResultDDMsg(void);
-    // Properties
+
+    SDL_Surface * screenSurface;
+    unsigned long vidMode;
+    unsigned long resWidth;
+    unsigned long resHeight;
+
+    /*// Properties
     LPDIRECTDRAWSURFACE lpDDSurface2;
     LPDIRECTDRAWSURFACE lpDDSurface1;
     LPDIRECTDRAWPALETTE lpDDPalette;
@@ -99,7 +106,7 @@ class TDDrawSdk : public TDDrawBaseClass {
     HANDLE hThread;
   unsigned long field_18C;
     LPDIRECTDRAW lpDDInterface;
-    LPDIRECTDRAWSURFACE lpDDSurface3;
+    LPDIRECTDRAWSURFACE lpDDSurface3;*/
     };
 
 

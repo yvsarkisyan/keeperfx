@@ -230,13 +230,16 @@ void __stdcall LbMouseOnEndSwap(void)
 
 void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
 {
+  //MouseToScreen calls were commented out because they are unnecessary; SDL can perform the
+  //necessary calculations of relative mouse coordinate much better.
+
   struct tagPOINT dstPos;
   dstPos.x = pos->x;
   dstPos.y = pos->y;
   switch ( action )
   {
     case 512:
-      MouseToScreen(&dstPos);
+      //MouseToScreen(&dstPos);
       LbMouseOnMove(dstPos);
       break;
     case 513:
@@ -244,7 +247,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MLeftButton = 1;
       if ( !lbDisplay.LeftButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.MouseX = lbDisplay.MMouseX;
         lbDisplay.MouseY = lbDisplay.MMouseY;
@@ -256,7 +259,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MLeftButton = 0;
       if ( !lbDisplay.RLeftButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.RMouseX = lbDisplay.MMouseX;
         lbDisplay.RMouseY = lbDisplay.MMouseY;
@@ -268,7 +271,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MRightButton = 1;
       if ( !lbDisplay.RightButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.MouseX = lbDisplay.MMouseX;
         lbDisplay.MouseY = lbDisplay.MMouseY;
@@ -280,7 +283,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MRightButton = 0;
       if ( !lbDisplay.RRightButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.RMouseX = lbDisplay.MMouseX;
         lbDisplay.RMouseY = lbDisplay.MMouseY;
@@ -292,7 +295,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MMiddleButton = 1;
       if ( !lbDisplay.MiddleButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.MouseX = lbDisplay.MMouseX;
         lbDisplay.MouseY = lbDisplay.MMouseY;
@@ -304,7 +307,7 @@ void __stdcall mouseControl(unsigned int action, struct tagPOINT *pos)
       lbDisplay.MMiddleButton = 0;
       if ( !lbDisplay.RMiddleButton )
       {
-        MouseToScreen(&dstPos);
+        //MouseToScreen(&dstPos);
         LbMouseOnMove(dstPos);
         lbDisplay.RMouseX = lbDisplay.MMouseX;
         lbDisplay.RMouseY = lbDisplay.MMouseY;

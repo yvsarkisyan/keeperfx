@@ -43,9 +43,8 @@ DLLIMPORT __cdecl long _DK_PointerDraw(long x, long y, struct TbSprite *spr, uns
 /******************************************************************************/
 void ClearSurface(struct SSurface *surf) // this was originally TSurface constructor
 {
-  surf->lpDDSurf = NULL;
-  surf->field_4 = 0;
-  surf->locks_count = 0;
+  surf->surf = NULL;
+  surf->pitch= 0;
 }
 
 /**
@@ -129,6 +128,7 @@ void LbI_PointerHandler::Initialise(struct TbSprite *spr, struct tagPOINT *npos,
   void *surfbuf;
   TbPixel *buf;
   long i;
+
   Release();
   LbSemaLock semlock(&sema_rel,0);
   semlock.Lock(true);
@@ -137,6 +137,7 @@ void LbI_PointerHandler::Initialise(struct TbSprite *spr, struct tagPOINT *npos,
   sprite = spr;
   lpDDC->create_surface(&surf1, sprite->SWidth, sprite->SHeight);
   lpDDC->create_surface(&surf2, sprite->SWidth, sprite->SHeight);
+
   surfbuf = lpDDC->lock_surface(&surf1);
   if (surfbuf == NULL)
   {
@@ -148,10 +149,10 @@ void LbI_PointerHandler::Initialise(struct TbSprite *spr, struct tagPOINT *npos,
   buf = (TbPixel *)surfbuf;
   for (i=0; i < sprite->SHeight; i++)
   {
-    memset(buf, 255, surf1.field_14);
-    buf += surf1.field_14;
+    memset(buf, 255, surf1.pitch);
+    buf += surf1.pitch;
   }
-  PointerDraw(0, 0, this->sprite, (TbPixel *)surfbuf, surf1.field_14);
+  PointerDraw(0, 0, this->sprite, (TbPixel *)surfbuf, surf1.pitch);
   lpDDC->unlock_surface(&surf1);
   this->position = npos;
   this->spr_offset = noffset;
@@ -159,6 +160,7 @@ void LbI_PointerHandler::Initialise(struct TbSprite *spr, struct tagPOINT *npos,
   this->field_1050 = true;
   NewMousePos();
   this->field_1054 = false;
+
   lpDDC->blt_surface(&surf2, this->draw_pos_x, this->draw_pos_y, &rect_1038, 0x10|0x02);
 }
 
@@ -282,20 +284,20 @@ void LbI_PointerHandler::OnBeginSwap(void)
   LbSemaLock semlock(&sema_rel,0);
   if (!semlock.Lock(true))
     return;
-  if ( lbUseSdk )
+  /*if ( lbUseSdk )
   {
-    Backup(false);
+    Backup(false);*/
     Draw(false);
-  } else
+  /*} else
   if (LbScreenLock() == Lb_SUCCESS)
   {
     PointerDraw(position->x - spr_offset->x, position->y - spr_offset->y,
         sprite, lbDisplay.WScreen, lbDisplay.GraphicsScreenWidth);
     LbScreenUnlock();
-  }
+  }*/
 }
 
-void LbI_PointerHandler::OnEndSwap(void)
+void LbI_PointerHandler::OnEndSwap(void) //not called any longer
 {
   LbSemaLock semlock(&sema_rel,1);
   if ( lbUseSdk )

@@ -106,9 +106,9 @@ OBJS = \
 $(RES)
 
 LINKOBJ  = $(OBJS)
-LINKLIB =  -L"./directx/lib" -L"./lib"  -mwindows -lkeeperfx -lwinmm -lddraw 
-INCS =  -I"./directx/include"
-CXXINCS =  -I"./directx/include" 
+LINKLIB =  -L"./directx/lib" -L"./lib"  -L"./sdl/lib" -mwindows -lmingw32 -lkeeperfx -lwinmm -lddraw -lSDLmain -lSDL
+INCS =  -I"./directx/include" -I"./sdl/include"
+CXXINCS =  -I"./directx/include"  -I"./sdl/include/SDL"
 # flags to generate dependency files
 DEPFLAGS = -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" 
 # code optimization flags
@@ -175,7 +175,7 @@ $(BIN): $(OBJS) $(LIBS)
 
 ./bin/keeperfx.dll: ./lib/keeper95_gold.dll ./lib/keeper95_gold.map
 	@echo 'Rebuilding DLL export table from: $<'
-	./lib/peresec -o"$@" --def "./lib/keeperfx.def" -p"_DK_" "$<"
+	peresec -o"$@" --def "./lib/keeperfx.def" -p"_DK_" "$<"
 	@echo 'Finished creating: $@'
 	@echo ' '
 
